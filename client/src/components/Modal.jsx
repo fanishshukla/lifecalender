@@ -1,57 +1,62 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, onSave, initialData }) {
-  const [goalText, setGoalText] = useState('');
-  const [color, setColor] = useState('#3b82f6');
+  const [formData, setFormData] = useState({
+    content: '',
+    target_date: '',
+    color: '#6366f1'
+  });
 
   useEffect(() => {
     if (initialData) {
-      setGoalText(initialData.content);
-      setColor(initialData.color || '#3b82f6');
+      // Formats date to YYYY-MM-DD for the input[type="date"]
+      const date = new Date(initialData.target_date).toISOString().split('T')[0];
+      setFormData({ ...initialData, target_date: date });
     } else {
-      setGoalText(''); setColor('#3b82f6');
+      setFormData({ content: '', target_date: '', color: '#6366f1' });
     }
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
-        <h2 className="text-2xl font-black mb-6">{initialData ? 'Edit Goal' : 'New Goal'}</h2>
-        
-        <div className="space-y-6">
-          <div>
-            <label className="text-xs font-bold text-gray-400 uppercase">Goal Description</label>
-            <input 
-              autoFocus
-              className="w-full border-b-2 border-gray-100 py-3 text-lg outline-none focus:border-black transition-all" 
-              placeholder="What is the goal?" 
-              value={goalText} 
-              onChange={e => setGoalText(e.target.value)} 
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-400 uppercase">Theme Color</label>
-            <input 
-              type="color" 
-              className="h-10 w-10 rounded-full border-none cursor-pointer" 
-              value={color} 
-              onChange={e => setColor(e.target.value)} 
-            />
-          </div>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white p-8 rounded-[2rem] border-4 border-slate-900 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full max-w-md">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter">
+            {initialData ? 'Update Goal' : 'New Goal'}
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X /></button>
         </div>
 
-        <div className="flex gap-3 mt-10">
-          <button onClick={onClose} className="flex-1 py-3 text-gray-400 font-bold">Cancel</button>
-          <button 
-            onClick={() => onSave({ goalText, color })} 
-            className="flex-1 py-3 bg-black text-white rounded-2xl font-bold shadow-lg shadow-gray-200"
-          >
-            {initialData ? 'Update' : 'Create'}
+        <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-4">
+          <input 
+            type="text" required placeholder="What's the goal?"
+            className="w-full p-4 border-2 border-slate-900 rounded-xl font-bold"
+            value={formData.content}
+            onChange={e => setFormData({...formData, content: e.target.value})}
+          />
+          <input 
+            type="date" required
+            className="w-full p-4 border-2 border-slate-900 rounded-xl font-bold"
+            value={formData.target_date}
+            onChange={e => setFormData({...formData, target_date: e.target.value})}
+          />
+          <div className="flex gap-2">
+            {['#6366f1', '#10b981', '#f59e0b', '#ef4444'].map(c => (
+              <button 
+                key={c} type="button" 
+                onClick={() => setFormData({...formData, color: c})}
+                className={`w-10 h-10 rounded-full border-2 border-slate-900 ${formData.color === c ? 'ring-4 ring-blue-200' : ''}`}
+                style={{backgroundColor: c}}
+              />
+            ))}
+          </div>
+          <button type="submit" className="w-full py-4 bg-slate-900 text-white font-black rounded-xl uppercase tracking-widest hover:bg-slate-800 transition-colors">
+            Save Goal
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
