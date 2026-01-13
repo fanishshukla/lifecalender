@@ -1,146 +1,174 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+
+// Components
+import Navbar from './components/Navbar';
 import EventSidebar from './components/EventSidebar';
+import GoalSidebar from './components/GoalSidebar';
 import ViewManager from './components/ViewManager';
 import EventModal from './components/EventModal';
+import GoalModal from './components/GoalModal';
 import Auth from './components/Auth';
 
-// Base URL for your backend - ensure this matches your server port
 const API_BASE = "http://localhost:5000/api";
 
 export default function App() {
-  // 1. Initialize state from localStorage to stay logged in on refresh
   const [token, setToken] = useState(() => localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [user, setUser] = useState(null);
+  
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [activeYear, setActiveYear] = useState(null);
+  const [prefillStart, setPrefillStart] = useState(null);
+  const [prefillEnd, setPrefillEnd] = useState(null);
+
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [loading, setLoading] = useState(!!token);
 
-  // 2. Fetch Data whenever the token changes
+  const isAchieved = (date) => date && new Date(date) < new Date();
+
   useEffect(() => {
     if (token) {
-      // Set global header for all axios requests
+      localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchInitialData();
+      fetchData();
     } else {
+      localStorage.removeItem('token');
       delete axios.defaults.headers.common['Authorization'];
       setLoading(false);
     }
   }, [token]);
 
-  const fetchInitialData = async () => {
+  const fetchData = async () => {
     try {
-      setLoading(true);
-      // Fetch everything at once
-      const [eventsRes, goalsRes, userRes] = await Promise.all([
+      const [u, e, g] = await Promise.all([
+        axios.get(`${API_BASE}/user`),
         axios.get(`${API_BASE}/events`),
-        axios.get(`${API_BASE}/goals`),
-        axios.get(`${API_BASE}/auth/me`)
+        axios.get(`${API_BASE}/goals`)
       ]);
-      
-      setEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
-      setGoals(Array.isArray(goalsRes.data) ? goalsRes.data : []);
-      setUser(userRes.data);
+      setUser(u.data);
+      setEvents(e.data);
+      setGoals(g.data);
     } catch (err) {
-      console.error("Data Fetch Error:", err.response?.data || err.message);
-      if (err.response?.status === 401 || err.response?.status === 403) {
-        handleLogout();
-      }
+      if (err.response?.status === 401) handleLogout();
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Auth Handlers
-  const handleLogin = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-  };
-
   const handleLogout = () => {
-    localStorage.removeItem('token');
     setToken(null);
     setUser(null);
     setEvents([]);
     setGoals([]);
   };
 
-  // 4. Data Handlers
-  const handleAddEvent = async (eventData) => {
-    try {
-      await axios.post(`${API_BASE}/events`, eventData);
-      fetchInitialData(); // Refresh list after adding
-      setIsEventModalOpen(false);
-    } catch (err) {
-      alert("Error saving event. Check console.");
-    }
+  const handleQuickCreate = (year, start, end) => {
+    setActiveYear(year);
+    setPrefillStart(start);
+    setPrefillEnd(end);
+    setSelectedEvent(null);
+    setIsEventModalOpen(true);
   };
 
-  // SHOW LOADING STATE
-  if (loading && token) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-slate-900"></div>
-      </div>
-    );
-  }
+  const handleSaveEvent = async (data) => {
+    try {
+      const res = selectedEvent 
+        ? await axios.put(`${API_BASE}/events/${selectedEvent.id}`, data)
+        : await axios.post(`${API_BASE}/events`, data);
+      setEvents(selectedEvent ? events.map(e => e.id === selectedEvent.id ? res.data : e) : [...events, res.data]);
+      setIsEventModalOpen(false);
+      resetEventStates();
+    } catch (err) { console.error(err); }
+  };
 
-  // SHOW AUTH PAGE IF NOT LOGGED IN
-  if (!token) {
-    return <Auth setToken={handleLogin} />;
-  }
+  const resetEventStates = () => {
+    setSelectedEvent(null);
+    setActiveYear(null);
+    setPrefillStart(null);
+    setPrefillEnd(null);
+  };
+
+  const handleSaveGoal = async (data) => {
+    try {
+      const res = selectedGoal 
+        ? await axios.put(`${API_BASE}/goals/${selectedGoal.id}`, data)
+        : await axios.post(`${API_BASE}/goals`, data);
+      setGoals(selectedGoal ? goals.map(g => g.id === selectedGoal.id ? res.data : g) : [...goals, res.data]);
+      setIsGoalModalOpen(false);
+      setSelectedGoal(null);
+    } catch (err) { console.error(err); }
+  };
+
+  if (loading) return <div className="h-screen flex items-center justify-center font-black uppercase tracking-widest italic bg-slate-50 text-slate-400">Archive Initializing...</div>;
+  if (!token) return <Auth setToken={setToken} />;
 
   return (
-    <div className="flex h-screen w-full bg-white overflow-hidden font-sans">
-      {/* LEFT SIDEBAR: Single Instance */}
-      <EventSidebar 
-        events={events} 
-        onAddEvent={() => setIsEventModalOpen(true)}
-        onOpenTimeline={() => setIsTimelineOpen(true)}
-      />
+    <div className="h-screen w-full bg-white flex flex-col font-sans text-slate-900 overflow-hidden">
+      {/* 1. Integrated Navbar */}
+      <Navbar user={user} onLogout={handleLogout} setView={() => setIsTimelineOpen(false)} />
 
-      {/* MIDDLE CONTENT: The 90-Year Matrix Grid */}
-      <ViewManager 
-        events={events}
-        goals={goals}
-        birthDate={user?.birth_date || '1995-01-01'}
-        isTimelineOpen={isTimelineOpen}
-        setIsTimelineOpen={setIsTimelineOpen}
-        onQuickCreate={() => setIsEventModalOpen(true)}
-        onEditEvent={(ev) => console.log("Edit:", ev)}
-        onEditGoal={(go) => console.log("Edit:", go)}
-      />
+      {/* 2. Full-Screen Workspace */}
+      <div className="flex flex-1 pt-16 h-full overflow-hidden">
+        
+        {/* Left Panel: Memory Archive */}
+        <aside className="w-72 border-r border-slate-100 flex flex-col bg-slate-50/30 overflow-hidden">
+          <EventSidebar 
+            events={events} 
+            onAddEvent={() => { resetEventStates(); setIsEventModalOpen(true); }}
+            onEditEvent={(ev) => { setSelectedEvent(ev); setActiveYear(new Date(ev.from_date).getFullYear()); setIsEventModalOpen(true); }}
+            onDeleteEvent={async (id) => { if(confirm("Delete memory?")) { await axios.delete(`${API_BASE}/events/${id}`); setEvents(events.filter(e=>e.id!==id)); } }}
+            onOpenTimeline={() => setIsTimelineOpen(true)}
+          />
+        </aside>
 
-      {/* OVERLAY MODALS */}
-      {isEventModalOpen && (
-        <EventModal 
-          isOpen={isEventModalOpen}
-          onClose={() => setIsEventModalOpen(false)}
-          onSubmit={handleAddEvent}
-        />
-      )}
+        {/* Center Canvas: The 90 Year Matrix */}
+        <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar p-4 lg:p-8">
+          <ViewManager 
+            events={events} 
+            goals={goals} 
+            birthDate={user?.birth_date}
+            onQuickCreate={handleQuickCreate}
+            onEditEvent={(ev) => { setSelectedEvent(ev); setIsEventModalOpen(true); }}
+            onEditGoal={(gl) => { setSelectedGoal(gl); setIsGoalModalOpen(true); }}
+            isTimelineOpen={isTimelineOpen} 
+            setIsTimelineOpen={setIsTimelineOpen}
+          />
+        </main>
 
-      {/* FLOAT LOGOUT */}
-      <div className="fixed top-6 right-8 z-[200] flex items-center gap-4">
-        {user && (
-          <div className="text-right">
-            <p className="text-[10px] font-black uppercase tracking-tighter text-slate-900 leading-none">
-              {user.username}
-            </p>
-            <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">
-              {user.email}
-            </p>
-          </div>
-        )}
-        <button 
-          onClick={handleLogout}
-          className="px-5 py-2 bg-slate-900 text-white text-[10px] font-black uppercase rounded-full hover:bg-red-600 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:translate-y-1"
-        >
-          Logout
-        </button>
+        {/* Right Panel: Life Targets */}
+        <aside className="w-72 border-l border-slate-100 flex flex-col bg-slate-50/30 overflow-hidden">
+          <GoalSidebar 
+            goals={goals} 
+            onAddGoal={() => { setSelectedGoal(null); setIsGoalModalOpen(true); }}
+            onEditGoal={(gl) => { setSelectedGoal(gl); setIsGoalModalOpen(true); }}
+            onDeleteGoal={async (id) => { if(confirm("Remove target?")) { await axios.delete(`${API_BASE}/goals/${id}`); setGoals(goals.filter(g=>g.id!==id)); } }}
+            isAchieved={isAchieved}
+          />
+        </aside>
       </div>
+
+      {/* Modals Layer */}
+      <EventModal 
+        isOpen={isEventModalOpen} 
+        initialData={selectedEvent}
+        lockedYear={activeYear}
+        defaultStart={prefillStart}
+        defaultEnd={prefillEnd}
+        onClose={() => { setIsEventModalOpen(false); resetEventStates(); }} 
+        onSubmit={handleSaveEvent} 
+      />
+
+      <GoalModal 
+        isOpen={isGoalModalOpen} 
+        initialData={selectedGoal}
+        onClose={() => { setIsGoalModalOpen(false); setSelectedGoal(null); }} 
+        onSubmit={handleSaveGoal} 
+      />
     </div>
   );
 }
