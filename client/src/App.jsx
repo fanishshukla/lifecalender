@@ -66,6 +66,18 @@ export default function App() {
     }
   };
 
+const handleAddMonthlyGoal = (year, monthIndex) => {
+  // Set the default date for the new goal to the 1st of that month
+  const defaultDate = new Date(year, monthIndex, 1).toISOString().split('T')[0];
+  
+  // Set the goal modal state
+  setSelectedGoal({ target_date: defaultDate, content: '' });
+  setIsGoalModalOpen(true);
+};
+
+
+
+
   const handleLogout = () => {
     setToken(null);
     setUser(null);
@@ -152,6 +164,13 @@ export default function App() {
             onEditGoal={(gl) => { setSelectedGoal(gl); setIsGoalModalOpen(true); }}
             isTimelineOpen={isTimelineOpen} 
             setIsTimelineOpen={setIsTimelineOpen}
+            onAddMonthlyGoal={handleAddMonthlyGoal}
+          selectedYear={activeYear || new Date().getFullYear()} // Ensure this isn't null
+          onAddGoal={(data) => { 
+              setSelectedGoal(data); 
+              setIsGoalModalOpen(true); 
+            }}
+
           />
         </main>
 
