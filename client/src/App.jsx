@@ -18,12 +18,14 @@ export default function App() {
   const [events, setEvents] = useState([]);
   const [goals, setGoals] = useState([]);
   
+  // Selection/Prefill States
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [activeYear, setActiveYear] = useState(null);
   const [prefillStart, setPrefillStart] = useState(null);
   const [prefillEnd, setPrefillEnd] = useState(null);
 
+  // UI States
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -31,9 +33,11 @@ export default function App() {
 
   const isAchieved = (date) => date && new Date(date) < new Date();
 
+  // AUTH & DATA SYNC LOGIC
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
+      // Crucial: Set the header for all future requests
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchData();
     } else {
@@ -45,8 +49,9 @@ export default function App() {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [u, e, g] = await Promise.all([
-        axios.get(`${API_BASE}/user`),
+        axios.get(`${API_BASE}/auth/me`),
         axios.get(`${API_BASE}/events`),
         axios.get(`${API_BASE}/goals`)
       ]);
@@ -54,6 +59,7 @@ export default function App() {
       setEvents(e.data);
       setGoals(g.data);
     } catch (err) {
+      console.error("Fetch error:", err);
       if (err.response?.status === 401) handleLogout();
     } finally {
       setLoading(false);
@@ -65,8 +71,10 @@ export default function App() {
     setUser(null);
     setEvents([]);
     setGoals([]);
+    localStorage.removeItem('token');
   };
 
+  // --- Handlers ---
   const handleQuickCreate = (year, start, end) => {
     setActiveYear(year);
     setPrefillStart(start);
@@ -80,10 +88,11 @@ export default function App() {
       const res = selectedEvent 
         ? await axios.put(`${API_BASE}/events/${selectedEvent.id}`, data)
         : await axios.post(`${API_BASE}/events`, data);
+      
       setEvents(selectedEvent ? events.map(e => e.id === selectedEvent.id ? res.data : e) : [...events, res.data]);
       setIsEventModalOpen(false);
       resetEventStates();
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Save Event error:", err); }
   };
 
   const resetEventStates = () => {
@@ -98,13 +107,19 @@ export default function App() {
       const res = selectedGoal 
         ? await axios.put(`${API_BASE}/goals/${selectedGoal.id}`, data)
         : await axios.post(`${API_BASE}/goals`, data);
+      
       setGoals(selectedGoal ? goals.map(g => g.id === selectedGoal.id ? res.data : g) : [...goals, res.data]);
       setIsGoalModalOpen(false);
       setSelectedGoal(null);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Save Goal error:", err); }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center font-black uppercase tracking-widest italic bg-slate-50 text-slate-400">Archive Initializing...</div>;
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-white">
+      <div className="text-xl font-black uppercase italic animate-pulse tracking-tighter">Synchronizing Archive...</div>
+    </div>
+  );
+
   if (!token) return <Auth setToken={setToken} />;
 
   return (
@@ -112,11 +127,11 @@ export default function App() {
       {/* 1. Integrated Navbar */}
       <Navbar user={user} onLogout={handleLogout} setView={() => setIsTimelineOpen(false)} />
 
-      {/* 2. Full-Screen Workspace */}
-      <div className="flex flex-1 pt-16 h-full overflow-hidden">
+      {/* 2. Main Workspace Layout */}
+      <div className="flex flex-1 pt-16 h-[calc(100vh-64px)] overflow-hidden">
         
         {/* Left Panel: Memory Archive */}
-        <aside className="w-72 border-r border-slate-100 flex flex-col bg-slate-50/30 overflow-hidden">
+        <aside className="w-72 border-r border-slate-100 flex flex-col bg-white overflow-hidden">
           <EventSidebar 
             events={events} 
             onAddEvent={() => { resetEventStates(); setIsEventModalOpen(true); }}
@@ -127,7 +142,7 @@ export default function App() {
         </aside>
 
         {/* Center Canvas: The 90 Year Matrix */}
-        <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar p-4 lg:p-8">
+        <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar bg-white">
           <ViewManager 
             events={events} 
             goals={goals} 
@@ -141,7 +156,7 @@ export default function App() {
         </main>
 
         {/* Right Panel: Life Targets */}
-        <aside className="w-72 border-l border-slate-100 flex flex-col bg-slate-50/30 overflow-hidden">
+        <aside className="w-72 border-l border-slate-100 flex flex-col bg-white overflow-hidden">
           <GoalSidebar 
             goals={goals} 
             onAddGoal={() => { setSelectedGoal(null); setIsGoalModalOpen(true); }}
