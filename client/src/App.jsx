@@ -37,7 +37,6 @@ export default function App() {
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
-      // Crucial: Set the header for all future requests
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchData();
     } else {
@@ -66,17 +65,12 @@ export default function App() {
     }
   };
 
-const handleAddMonthlyGoal = (year, monthIndex) => {
-  // Set the default date for the new goal to the 1st of that month
-  const defaultDate = new Date(year, monthIndex, 1).toISOString().split('T')[0];
-  
-  // Set the goal modal state
-  setSelectedGoal({ target_date: defaultDate, content: '' });
-  setIsGoalModalOpen(true);
-};
-
-
-
+  // HANDLER FOR TIMELINE MONTH CLICK
+  const handleAddGoalFromTimeline = (goalData) => {
+    // goalData is { target_date: 'YYYY-MM-DD' } passed from TimelineComponents
+    setSelectedGoal(goalData);
+    setIsGoalModalOpen(true);
+  };
 
   const handleLogout = () => {
     setToken(null);
@@ -86,7 +80,7 @@ const handleAddMonthlyGoal = (year, monthIndex) => {
     localStorage.removeItem('token');
   };
 
-  // --- Handlers ---
+  // --- Event Handlers ---
   const handleQuickCreate = (year, start, end) => {
     setActiveYear(year);
     setPrefillStart(start);
@@ -114,13 +108,14 @@ const handleAddMonthlyGoal = (year, monthIndex) => {
     setPrefillEnd(null);
   };
 
+  // --- Goal Handlers ---
   const handleSaveGoal = async (data) => {
     try {
-      const res = selectedGoal 
+      const res = selectedGoal?.id 
         ? await axios.put(`${API_BASE}/goals/${selectedGoal.id}`, data)
         : await axios.post(`${API_BASE}/goals`, data);
       
-      setGoals(selectedGoal ? goals.map(g => g.id === selectedGoal.id ? res.data : g) : [...goals, res.data]);
+      setGoals(selectedGoal?.id ? goals.map(g => g.id === selectedGoal.id ? res.data : g) : [...goals, res.data]);
       setIsGoalModalOpen(false);
       setSelectedGoal(null);
     } catch (err) { console.error("Save Goal error:", err); }
@@ -136,13 +131,11 @@ const handleAddMonthlyGoal = (year, monthIndex) => {
 
   return (
     <div className="h-screen w-full bg-white flex flex-col font-sans text-slate-900 overflow-hidden">
-      {/* 1. Integrated Navbar */}
       <Navbar user={user} onLogout={handleLogout} setView={() => setIsTimelineOpen(false)} />
 
-      {/* 2. Main Workspace Layout */}
       <div className="flex flex-1 pt-16 h-[calc(100vh-64px)] overflow-hidden">
         
-        {/* Left Panel: Memory Archive */}
+        {/* Left Panel */}
         <aside className="w-72 border-r border-slate-100 flex flex-col bg-white overflow-hidden">
           <EventSidebar 
             events={events} 
@@ -153,7 +146,7 @@ const handleAddMonthlyGoal = (year, monthIndex) => {
           />
         </aside>
 
-        {/* Center Canvas: The 90 Year Matrix */}
+        {/* Center Canvas */}
         <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar bg-white">
           <ViewManager 
             events={events} 
@@ -164,17 +157,12 @@ const handleAddMonthlyGoal = (year, monthIndex) => {
             onEditGoal={(gl) => { setSelectedGoal(gl); setIsGoalModalOpen(true); }}
             isTimelineOpen={isTimelineOpen} 
             setIsTimelineOpen={setIsTimelineOpen}
-            onAddMonthlyGoal={handleAddMonthlyGoal}
-          selectedYear={activeYear || new Date().getFullYear()} // Ensure this isn't null
-          onAddGoal={(data) => { 
-              setSelectedGoal(data); 
-              setIsGoalModalOpen(true); 
-            }}
-
+            // Passing the specific handler to the Timeline logic
+            onAddGoal={handleAddGoalFromTimeline}
           />
         </main>
 
-        {/* Right Panel: Life Targets */}
+        {/* Right Panel */}
         <aside className="w-72 border-l border-slate-100 flex flex-col bg-white overflow-hidden">
           <GoalSidebar 
             goals={goals} 

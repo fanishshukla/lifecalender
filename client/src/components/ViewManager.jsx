@@ -4,7 +4,7 @@ import { YearSquare } from './YearSquare';
 import { HoverPanels } from './HoverPanels';
 
 export default function ViewManager({ 
-  events = [], goals = [], birthDate, onQuickCreate, onEditEvent, onEditGoal, isTimelineOpen, setIsTimelineOpen 
+  events = [], goals = [], birthDate, onQuickCreate, onEditEvent, onEditGoal, isTimelineOpen, setIsTimelineOpen , onAddGoal
 }) {
   const [hoveredYear, setHoveredYear] = useState(null);
 
@@ -53,6 +53,7 @@ export default function ViewManager({
         onQuickCreate={onQuickCreate}
         onEditEvent={onEditEvent}
         onEditGoal={onEditGoal}
+        onAddGoal={onAddGoal}
       />
     </div>
   );
